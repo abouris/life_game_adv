@@ -1,0 +1,372 @@
+<html><head>
+<title>Advanced Interactive Conway's Game of Life Simulator</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background-color: #1a1a1a;
+    color: #f0f0f0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+    padding: 20px;
+    box-sizing: border-box;
+  }
+  canvas {
+    border: 1px solid #444;
+    margin-bottom: 20px;
+    cursor: crosshair;
+  }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
+    max-width: 800px;
+  }
+  .control-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+  }
+  input[type="range"], input[type="color"] {
+    width: 150px;
+  }
+  button, select {
+    background-color: #4CAF50;
+    border: none;
+    color: white;
+    padding: 10px 20px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  button:hover, select:hover {
+    background-color: #45a049;
+  }
+  select {
+    background-color: #2a2a2a;
+  }
+  .statistics, .rules, .instructions {
+    background-color: #2a2a2a;
+    padding: 10px;
+    border-radius: 5px;
+    margin-top: 20px;
+    text-align: left;
+  }
+  .header {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  .explanation {
+    max-width: 800px;
+    text-align: left;
+    margin-bottom: 20px;
+  }
+</style>
+<script type="text/javascript" nonce="3ef5692b142a4420908a6375302" src="//local.adguard.org?ts=1720691028772&amp;type=content-script&amp;dmn=websim.ai&amp;url=https%3A%2F%2Fwebsim.ai%2Fapi%2Fhtml%3Fpayload%3D%257B%2522id%2522%253A%2522y1LA4LJ4BHPEauvyw%2522%252C%2522debug%2522%253A%2522true%2522%252C%2522raw%2522%253A%2522true%2522%257D&amp;app=com.google.Chrome&amp;css=3&amp;js=1&amp;rel=1&amp;rji=1&amp;sbe=1"></script>
+<script type="text/javascript" nonce="3ef5692b142a4420908a6375302" src="//local.adguard.org?ts=1720691028772&amp;name=AdGuard%20Assistant&amp;name=AdGuard%20Extra&amp;type=user-script"></script></head>
+<body>
+<div class="header">
+  <h1>Conway's Game of Life Simulator</h1>
+</div>
+<div class="explanation">
+  <p>Welcome to Conway's Game of Life Simulator, an advanced interactive simulator for Conway's Game of Life. This cellular automaton follows simple rules to create complex patterns and behaviors. Watch as cells live, die, and evolve based on their surroundings!</p>
+</div>
+<canvas id="gameCanvas"></canvas>
+<div class="controls">
+  <div class="control-group">
+    <label>
+      Speed: <input type="range" id="speedSlider" min="1" max="60" value="10">
+      <span id="speedValue">10 FPS</span>
+    </label>
+    <label>
+      Canvas Size: <input type="range" id="sizeSlider" min="10" max="100" value="50">
+      <span id="sizeValue">50x50</span>
+    </label>
+    <label>
+      Cell Color: <input type="color" id="cellColorPicker" value="#00ff00">
+    </label>
+    <label>
+      Background Color: <input type="color" id="bgColorPicker" value="#1a1a1a">
+    </label>
+  </div>
+  <div class="control-group">
+    <label>
+      Survival Preset:
+      <select id="survivalPreset">
+        <option value="custom">Custom</option>
+        <option value="easy">Easy (100)</option>
+        <option value="normal" selected>Normal (50)</option>
+        <option value="hard">Hard (0)</option>
+      </select>
+    </label>
+    <label>
+      Custom Survival: <input type="range" id="survivalSlider" min="0" max="100" value="50">
+      <span id="survivalValue">50</span>
+    </label>
+    <button id="startButton">Start</button>
+    <button id="clearButton">Clear</button>
+  </div>
+</div>
+<div class="statistics" id="statistics"></div>
+<div class="rules" id="rules"></div>
+<div class="instructions">
+  <h3>Instructions:</h3>
+  <p>1. Click and drag on the canvas to draw live cells.</p>
+  <p>2. Use the controls to adjust simulation speed, canvas size, and colors.</p>
+  <p>3. Select a survival preset or set a custom survival rate.</p>
+  <p>4. Click 'Start' to begin the simulation, and 'Stop' to pause it.</p>
+  <p>5. Use 'Clear' to reset the canvas and start over.</p>
+  <p>6. Watch the statistics and rules sections for real-time information.</p>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const speedSlider = document.getElementById('speedSlider');
+const sizeSlider = document.getElementById('sizeSlider');
+const survivalPreset = document.getElementById('survivalPreset');
+const survivalSlider = document.getElementById('survivalSlider');
+const startButton = document.getElementById('startButton');
+const clearButton = document.getElementById('clearButton');
+const speedValue = document.getElementById('speedValue');
+const sizeValue = document.getElementById('sizeValue');
+const survivalValue = document.getElementById('survivalValue');
+const cellColorPicker = document.getElementById('cellColorPicker');
+const bgColorPicker = document.getElementById('bgColorPicker');
+const statisticsDiv = document.getElementById('statistics');
+const rulesDiv = document.getElementById('rules');
+
+let gridSize = 50;
+let cellSize = 10;
+let speed = 10;
+let grid = [];
+let isRunning = false;
+let intervalId = null;
+let survivalRate = 50;
+let cellColor = '#00ff00';
+let bgColor = '#1a1a1a';
+let generation = 0;
+let population = 0;
+let isDrawing = false;
+
+function initializeGrid() {
+  grid = [];
+  for (let i = 0; i < gridSize; i++) {
+    grid[i] = [];
+    for (let j = 0; j < gridSize; j++) {
+      grid[i][j] = Math.random() > 0.7;
+    }
+  }
+  updatePopulation();
+}
+
+function drawGrid() {
+  ctx.fillStyle = bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = cellColor;
+  for (let i = 0; i < gridSize; i++) {
+    for (let j = 0; j < gridSize; j++) {
+      if (grid[i][j]) {
+        ctx.fillRect(i * cellSize, j * cellSize, cellSize - 1, cellSize - 1);
+      }
+    }
+  }
+}
+
+function updateGrid() {
+  const newGrid = grid.map(arr => [...arr]);
+
+  for (let i = 0; i < gridSize; i++) {
+    for (let j = 0; j < gridSize; j++) {
+      const neighbors = countNeighbors(i, j);
+      if (grid[i][j]) {
+        if (neighbors < 2 || neighbors > 3) {
+          newGrid[i][j] = Math.random() * 100 < survivalRate;
+        }
+      } else {
+        if (neighbors === 3) {
+          newGrid[i][j] = true;
+        }
+      }
+    }
+  }
+
+  grid = newGrid;
+  generation++;
+  updatePopulation();
+  updateStatistics();
+}
+
+function countNeighbors(x, y) {
+  let count = 0;
+  for (let i = -1; i <= 1; i++) {
+    for (let j = -1; j <= 1; j++) {
+      if (i === 0 && j === 0) continue;
+      const newX = (x + i + gridSize) % gridSize;
+      const newY = (y + j + gridSize) % gridSize;
+      if (grid[newX][newY]) count++;
+    }
+  }
+  return count;
+}
+
+function gameLoop() {
+  updateGrid();
+  drawGrid();
+}
+
+function start() {
+  if (!isRunning) {
+    isRunning = true;
+    startButton.textContent = 'Stop';
+    intervalId = setInterval(gameLoop, 1000 / speed);
+  } else {
+    isRunning = false;
+    startButton.textContent = 'Start';
+    clearInterval(intervalId);
+  }
+}
+
+function updatePopulation() {
+  population = grid.flat().filter(cell => cell).length;
+}
+
+function updateStatistics() {
+  statisticsDiv.innerHTML = `
+    Generation: ${generation} | 
+    Population: ${population} | 
+    Density: ${(population / (gridSize * gridSize) * 100).toFixed(2)}%
+  `;
+}
+
+function updateRules() {
+  rulesDiv.innerHTML = `
+    <strong>Current Rules:</strong><br>
+    Birth: 3 neighbors<br>
+    Survival: 2 or 3 neighbors<br>
+    Death: &lt;2 or &gt;3 neighbors (${survivalRate}% chance of survival)
+  `;
+}
+
+function handleDrawing(e) {
+  const rect = canvas.getBoundingClientRect();
+  const x = Math.floor((e.clientX - rect.left) / cellSize);
+  const y = Math.floor((e.clientY - rect.top) / cellSize);
+  
+  if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
+    grid[x][y] = !grid[x][y];
+    updatePopulation();
+    drawGrid();
+    updateStatistics();
+  }
+}
+
+speedSlider.addEventListener('input', (e) => {
+  speed = parseInt(e.target.value);
+  speedValue.textContent = `${speed} FPS`;
+  if (isRunning) {
+    clearInterval(intervalId);
+    intervalId = setInterval(gameLoop, 1000 / speed);
+  }
+});
+
+sizeSlider.addEventListener('input', (e) => {
+  gridSize = parseInt(e.target.value);
+  sizeValue.textContent = `${gridSize}x${gridSize}`;
+  cellSize = Math.floor(500 / gridSize);
+  canvas.width = gridSize * cellSize;
+  canvas.height = gridSize * cellSize;
+  initializeGrid();
+  drawGrid();
+  updateStatistics();
+});
+
+survivalPreset.addEventListener('change', (e) => {
+  switch (e.target.value) {
+    case 'easy':
+      survivalRate = 100;
+      break;
+    case 'normal':
+      survivalRate = 50;
+      break;
+    case 'hard':
+      survivalRate = 0;
+      break;
+    default:
+      survivalRate = parseInt(survivalSlider.value);
+  }
+  survivalSlider.value = survivalRate;
+  survivalValue.textContent = survivalRate;
+  updateRules();
+});
+
+survivalSlider.addEventListener('input', (e) => {
+  survivalRate = parseInt(e.target.value);
+  survivalValue.textContent = survivalRate;
+  survivalPreset.value = 'custom';
+  updateRules();
+});
+
+cellColorPicker.addEventListener('input', (e) => {
+  cellColor = e.target.value;
+  drawGrid();
+});
+
+bgColorPicker.addEventListener('input', (e) => {
+  bgColor = e.target.value;
+  drawGrid();
+});
+
+startButton.addEventListener('click', start);
+
+clearButton.addEventListener('click', () => {
+  grid = grid.map(row => row.map(() => false));
+  generation = 0;
+  updatePopulation();
+  updateStatistics();
+  drawGrid();
+});
+
+canvas.addEventListener('mousedown', (e) => {
+  isDrawing = true;
+  handleDrawing(e);
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  if (isDrawing) {
+    handleDrawing(e);
+  }
+});
+
+canvas.addEventListener('mouseup', () => {
+  isDrawing = false;
+});
+
+canvas.addEventListener('mouseleave', () => {
+  isDrawing = false;
+});
+
+// Initialize
+canvas.width = 500;
+canvas.height = 500;
+initializeGrid();
+drawGrid();
+updateStatistics();
+updateRules();
+</script>
+</body></html>
